@@ -1,7 +1,6 @@
 package kde
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 	"testing"
@@ -52,32 +51,38 @@ func TestSilvermanScott(t *testing.T) {
 	}
 }
 
-func scottMatches(scott *mat.SymBandDense, xs *mat.Dense, weights []float64) bool {
+func scottMatches(scott *mat.Cholesky, xs *mat.Dense, weights []float64) bool {
 	n, d := xs.Dims()
+	scottSym := mat.NewSymDense(d, nil)
+	scott.ToSym(scottSym)
 	// Scott should be variance * n^(-1/(d+4)).
 	for j := 0; j < d; j++ {
 		col := mat.Col(nil, j, xs)
 		std := stat.StdDev(col, weights)
 		v := std * math.Pow(float64(n), -1.0/(float64(d)+4))
 		v *= v
-		if math.Abs(scott.At(j, j)-v) > 1e-14 {
-			fmt.Println(v, scott.At(j, j))
+		if math.Abs(scottSym.At(j, j)-v) > 1e-14 {
 			return false
 		}
 	}
 	return true
 }
 
-func scottSilvermanConsistent(scott, silverman *mat.SymBandDense, n int) bool {
-	d := scott.Symmetric()
-	if d != silverman.Symmetric() {
+func scottSilvermanConsistent(scott, silverman *mat.Cholesky, n int) bool {
+	d := scott.Size()
+	if d != silverman.Size() {
 		return false
 	}
+	symScott := mat.NewSymDense(d, nil)
+	scott.ToSym(symScott)
+	symSilverman := mat.NewSymDense(d, nil)
+	silverman.ToSym(symSilverman)
+
 	// The two should differ by a factor of  (4/(d+2))^(1/(d+4)) squared
 	diff := 4 / (float64(d) + 2)
 	diff = math.Pow(diff, 1/(float64(d)+4))
 	for i := 0; i < d; i++ {
-		if math.Abs(diff*diff*scott.At(i, i)-silverman.At(i, i)) > 1e-14 {
+		if math.Abs(diff*diff*symScott.At(i, i)-symSilverman.At(i, i)) > 1e-14 {
 			return false
 		}
 	}
@@ -100,9 +105,7 @@ func TestGaussianRandLogProb(t *testing.T) {
 		dist.Rand(x.RawRowView(i))
 	}
 
-	sym := Scott(x, nil)
-	var chol mat.Cholesky
-	chol.Factorize(sym)
+	chol := Scott(x, nil)
 
 	// Add weights
 	weights := make([]float64, n)
@@ -111,7 +114,7 @@ func TestGaussianRandLogProb(t *testing.T) {
 	}
 	gauss := Gaussian{
 		X:    x,
-		Chol: &chol,
+		Chol: chol,
 		Src:  src,
 	}
 

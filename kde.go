@@ -21,22 +21,24 @@ var sizeMismatch string = "kde: input size mismatch"
 //
 // Note that there is no correction for the value of the weights in computing
 // the effective number of samples.
-func Silverman(x mat.Matrix, weights []float64) *mat.SymBandDense {
+func Silverman(x mat.Matrix, weights []float64) *mat.Cholesky {
 	n, d := x.Dims()
 	if weights != nil && len(weights) != n {
 		panic(sizeMismatch)
 	}
-	out := mat.NewDiagonal(d, nil)
+	// TODO(btracey): Fix if gonum/#282 is resolved.
+	out := mat.NewTriDense(d, mat.Upper, nil)
 	col := make([]float64, n)
 	nf, df := float64(n), float64(d)
 	for j := 0; j < d; j++ {
 		mat.Col(col, j, x)
 		std := stat.StdDev(col, weights)
 		hii := math.Pow(4/(df+2), 1/(df+4)) * math.Pow(nf, -1/(df+4)) * std
-		hii *= hii
-		out.SetSymBand(j, j, hii)
+		out.SetTri(j, j, hii)
 	}
-	return out
+	var chol mat.Cholesky
+	chol.SetFromU(out)
+	return &chol
 }
 
 // Scott approximates the kernel bandwidth for the set of samples using
@@ -45,22 +47,24 @@ func Silverman(x mat.Matrix, weights []float64) *mat.SymBandDense {
 //
 // Note that there is no correction for the value of the weights in computing
 // the effective number of samples.
-func Scott(x mat.Matrix, weights []float64) *mat.SymBandDense {
+func Scott(x mat.Matrix, weights []float64) *mat.Cholesky {
 	n, d := x.Dims()
 	if weights != nil && len(weights) != n {
 		panic(sizeMismatch)
 	}
-	out := mat.NewDiagonal(d, nil)
+	// TODO(btracey): Fix if gonum/#282 is resolved.
+	out := mat.NewTriDense(d, mat.Upper, nil)
 	col := make([]float64, n)
 	nf, df := float64(n), float64(d)
 	for j := 0; j < d; j++ {
 		mat.Col(col, j, x)
 		std := stat.StdDev(col, weights)
 		hii := math.Pow(nf, -1/(df+4)) * std
-		hii *= hii
-		out.SetSymBand(j, j, hii)
+		out.SetTri(j, j, hii)
 	}
-	return out
+	var chol mat.Cholesky
+	chol.SetFromU(out)
+	return &chol
 }
 
 // Gaussian represents a KDE where each component has the same covariance matrix
