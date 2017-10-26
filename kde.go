@@ -76,6 +76,11 @@ type Gaussian struct {
 	Src     *rand.Rand
 }
 
+func (gauss Gaussian) Dim() int {
+	_, c := gauss.X.Dims()
+	return c
+}
+
 // LogProb computes the log of the probability for the location x.
 func (gauss Gaussian) LogProb(x []float64) float64 {
 	n, d := gauss.X.Dims()
@@ -128,6 +133,7 @@ func (gauss Gaussian) Rand(x []float64) []float64 {
 // EntropyUpper returns an upper bound on the mixture entropy, as computed by
 //  H(X) <= d/2 - \sum_i w_i ln \sum_j w_j p_j(μ_i)
 //  H(X) <= d/2 - \sum_i w_i ln p(μ_i)
+// where p(μ_i) is the probability under the mixture.
 // See section IV of
 //  Estimating Mixture Entropy with Pairwise Distances
 //  A. Kolchinsky and B. Tracey
@@ -152,4 +158,24 @@ func (gauss Gaussian) EntropyUpper() float64 {
 	}
 	entropy += float64(d) / 2
 	return entropy
+}
+
+// EntropyLower returns a lower bound on the mixture entropy.
+// using the Bhattacharyya distance
+//  H(X) <= d/2 - d/2 * ln(4) - \sum_i c_i ln \sum_j c_j p_tilde(mu_i)
+//  H(X) <= d/2 - d/2 * ln(4) - \sum_i c_i ln p_tilde(mu_i)
+// where p_tilde is the probability under the mixture if the covariance
+// is Σ/4
+func (gauss Gaussian) EntropyLower() float64 {
+	// Rather than implement the above directly, note that this is the same
+	// formula as above with the scaled covariance.
+	var chol mat.Cholesky
+	chol.Scale(4, gauss.Chol)
+
+	gauss2 := Gaussian{
+		X:       gauss.X,
+		Chol:    &chol,
+		Weights: gauss.Weights,
+	}
+	return gauss2.EntropyUpper() - (float64(gauss.Dim())/2)*math.Log(4)
 }

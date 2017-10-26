@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/btracey/mixent"
+
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
@@ -182,4 +184,77 @@ func matchImportanceSampling(p distmv.LogProber, q distmv.RandLogProber, nSample
 		return false
 	}
 	return true
+}
+
+func TestGaussianEntropy(t *testing.T) {
+	// Generate the mixture model.
+	src := rand.New(rand.NewSource(1))
+	d := 4
+	n := 20
+	x := mat.NewDense(n, d, nil)
+	cov := mat.NewDiagonal(d, nil)
+	for i := 0; i < d; i++ {
+		cov.SetSymBand(i, i, 1)
+	}
+	dist, _ := distmv.NewNormal(make([]float64, d), cov, src)
+	for i := 0; i < n; i++ {
+		dist.Rand(x.RawRowView(i))
+	}
+	chol := Scott(x, nil)
+	gauss := Gaussian{
+		X:       x,
+		Chol:    chol,
+		Weights: nil,
+		Src:     src,
+	}
+
+	lower := gauss.EntropyLower()
+	upper := gauss.EntropyUpper()
+
+	if lower > upper {
+		t.Errorf("entropy estimate for lower bigger than upper")
+	}
+
+	// Compare to the mixent code.
+	sigma := chol.ToSym(nil)
+	components := make([]mixent.Component, n)
+	for i := range components {
+		dist, ok := distmv.NewNormal(x.RawRowView(i), sigma, nil)
+		if !ok {
+			panic("bad sym")
+		}
+		components[i] = dist
+	}
+	lowerReal := mixent.PairwiseDistance{mixent.NormalDistance{distmv.Bhattacharyya{}}}.MixtureEntropy(components, nil)
+	upperReal := mixent.PairwiseDistance{mixent.NormalDistance{distmv.KullbackLeibler{}}}.MixtureEntropy(components, nil)
+	if math.Abs(lowerReal-lower) > 1e-10 {
+		t.Errorf("lower mismatch. Want %v, got %v", lowerReal, lower)
+	}
+	if math.Abs(upperReal-upper) > 1e-10 {
+		t.Errorf("upper mismatch. Want %v, got %v", upperReal, upper)
+	}
+
+	// Try with weighted data
+	weights := make([]float64, n)
+	for i := range weights {
+		weights[i] = src.Float64()
+	}
+	w := floats.Sum(weights)
+	floats.Scale(1/w, weights)
+
+	gauss.Weights = weights
+
+	lower = gauss.EntropyLower()
+	upper = gauss.EntropyUpper()
+	if lower > upper {
+		t.Errorf("entropy estimate for lower bigger than upper")
+	}
+	lowerReal = mixent.PairwiseDistance{mixent.NormalDistance{distmv.Bhattacharyya{}}}.MixtureEntropy(components, weights)
+	upperReal = mixent.PairwiseDistance{mixent.NormalDistance{distmv.KullbackLeibler{}}}.MixtureEntropy(components, weights)
+	if math.Abs(lowerReal-lower) > 1e-10 {
+		t.Errorf("lower mismatch weighted. Want %v, got %v", lowerReal, lower)
+	}
+	if math.Abs(upperReal-upper) > 1e-10 {
+		t.Errorf("upper mismatch weighted. Want %v, got %v", upperReal, upper)
+	}
 }
