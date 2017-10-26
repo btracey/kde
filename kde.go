@@ -165,7 +165,7 @@ func (gauss Gaussian) EntropyUpper() float64 {
 //  H(X) <= d/2 - d/2 * ln(4) - \sum_i c_i ln \sum_j c_j p_tilde(mu_i)
 //  H(X) <= d/2 - d/2 * ln(4) - \sum_i c_i ln p_tilde(mu_i)
 // where p_tilde is the probability under the mixture if the covariance
-// is Σ/4
+// is Σ*4
 func (gauss Gaussian) EntropyLower() float64 {
 	// Rather than implement the above directly, note that this is the same
 	// formula as above with the scaled covariance.
