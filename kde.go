@@ -3,14 +3,14 @@ package kde
 
 import (
 	"math"
-	"math/rand"
 
-	"gonum.org/v1/gonum/stat/distuv"
+	"golang.org/x/exp/rand"
 
 	"gonum.org/v1/gonum/floats"
 	"gonum.org/v1/gonum/mat"
 	"gonum.org/v1/gonum/stat"
 	"gonum.org/v1/gonum/stat/distmv"
+	"gonum.org/v1/gonum/stat/distuv"
 )
 
 var sizeMismatch string = "kde: input size mismatch"
@@ -73,7 +73,7 @@ type Gaussian struct {
 	X       mat.Matrix
 	Chol    *mat.Cholesky
 	Weights []float64
-	Src     *rand.Rand
+	Src     rand.Source
 }
 
 func (gauss Gaussian) Dim() int {
@@ -119,7 +119,7 @@ func (gauss Gaussian) Rand(x []float64) []float64 {
 		if gauss.Src == nil {
 			idx = rand.Intn(n)
 		} else {
-			idx = gauss.Src.Intn(n)
+			idx = rand.New(gauss.Src).Intn(n)
 		}
 	} else {
 		c := distuv.NewCategorical(gauss.Weights, gauss.Src)
